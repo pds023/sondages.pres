@@ -1,0 +1,41 @@
+PUBLICATION — OBSERVATOIRE DES SONDAGES, PRÉSIDENTIELLE 2027
+
+Fichiers préparés
+- manifest.json : manifeste de déploiement Posit Connect Cloud, à la racine, avec app.R.
+- inst/app/www/logo-observatoire-2027.png : logo carré PNG, 1 254 × 1 254 pixels.
+- publication/description-data-gouv.txt : titre et courte description à copier.
+- dev/generate_manifest.R : régénération du manifeste après une modification.
+- publication/logo-prompt.txt : prompt et outil utilisés pour le logo.
+
+1. Héberger l’application
+La cible de publication est Posit Connect Cloud (connect.posit.cloud). Le projet
+peut être travaillé dans RStudio ou dans l’environnement de développement Posit Cloud.
+Pour une publication depuis GitHub, conserver manifest.json au même niveau que app.R,
+ainsi que tous les fichiers recensés dans le manifeste. Choisir Shiny et app.R comme
+fichier principal dans Connect Cloud. Après déploiement, récupérer l’URL publique de
+l’application et vérifier qu’elle est consultable sans connexion.
+
+2. Référencer l’application sur data.gouv.fr
+Créer une réutilisation de type « Application » liée au jeu de données réellement
+exploité. Utiliser le titre et la description préparés. Renseigner comme URL celle
+de l’application publiée, et joindre le logo PNG comme illustration.
+Mots-clés proposés : presidentielle-2027, sondages, intentions-de-vote, elections,
+visualisation, shiny.
+Une capture d’écran des graphiques peut compléter le logo pour montrer l’usage.
+
+3. Maintenir le manifeste
+Le manifeste livré est construit avec R 4.4.3. Depuis la racine du projet,
+exécuter dans une session R 4.4.3 : source("dev/generate_manifest.R").
+La version de R et les versions de packages de la session sont reprises dans le
+manifeste : pour changer de version, vérifier sa disponibilité sur Connect Cloud.
+Régénérer le manifeste après un changement de fichiers ou de dépendances, puis
+republier. Les données restent celles du fichier embarqué ; leur actualisation
+nécessite une mise à jour du fichier et un nouveau déploiement.
+
+Documentation officielle
+https://docs.posit.co/connect-cloud/how-to/r/shiny-r.html
+https://docs.posit.co/connect-cloud/how-to/r/dependencies.html
+https://docs.posit.co/connect-cloud/user/platform/r.html
+https://guides.data.gouv.fr/reutilisations/publier-une-reutilisation
+
+Ces fichiers préparent la publication. Aucun compte ni contenu en ligne n’a été modifié.
