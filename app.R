@@ -5,4 +5,5 @@ if (!requireNamespace("pkgload", quietly = TRUE)) {
 }
 pkgload::load_all(".", quiet = TRUE, export_all = FALSE,
                   helpers = FALSE, attach_testthat = FALSE)
-run_app()
+# Utiliser le namespace du package, même si Shiny a aussi chargé le dossier R/.
+getExportedValue("sondages.pres", "run_app")()
