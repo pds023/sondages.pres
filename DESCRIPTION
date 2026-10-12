@@ -1,0 +1,32 @@
+Package: sondages.pres
+Title: Observatoire des Sondages Presidentielle 2027
+Version: 0.1.0
+Authors@R:
+    person(given = "Équipe", family = "Observatoire",
+           role = c("aut", "cre"), email = "contact@example.org")
+Description: Application Shiny structuree avec Golem pour explorer les
+    intentions de vote pour l'election presidentielle francaise de 2027.
+    Propose des visualisations interactives, des comparaisons de scenarios,
+    des analyses par institut et des exports a partir de donnees embarquees.
+    Les resultats sont descriptifs et ne constituent pas des predictions.
+License: file LICENSE
+Encoding: UTF-8
+Depends:
+    R (>= 4.1.0)
+Imports:
+    bslib (>= 0.9.0),
+    config,
+    DT,
+    golem,
+    htmltools,
+    plotly,
+    shiny (>= 1.8.0),
+    stats,
+    utils
+Suggests:
+    jsonlite,
+    pkgload,
+    roxygen2,
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+Config/roxygen2/version: 8.1.0
