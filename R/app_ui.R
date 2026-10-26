@@ -4,7 +4,7 @@
 #' @import shiny
 #' @noRd
 app_ui <- function(request) {
-  polls <- load_app_data()
+  polls <- load_app_data(app_poll_source()$path())
   dates <- range(polls$terrain_fin, na.rm = TRUE)
   institutes <- sort(unique(polls$institut))
 
@@ -39,7 +39,7 @@ app_ui <- function(request) {
                               tags$span(class = "brand-detail", "OBSERVATOIRE")))
       ),
       tags$div(class = "header-note", tags$span(class = "status-dot"),
-               "Données locales", tags$span(class = "header-note-divider", "·"),
+               "Données ouvertes", tags$span(class = "header-note-divider", "·"),
                "Exploration indépendante")
     ),
     bslib::layout_sidebar(
@@ -83,6 +83,7 @@ app_ui <- function(request) {
                           tags$h1("L’observatoire des sondages"),
                           tags$p(class = "page-description", "Tendances, candidatures et scénarios de la présidentielle 2027.")),
                  uiOutput("scope_label", class = "scope-label")),
+        uiOutput("data_status", `aria-live` = "polite"),
         bslib::navset_tab(
           id = "view", selected = "overview",
           bslib::nav_panel(
@@ -187,7 +188,7 @@ app_ui <- function(request) {
                          tags$p(class = "formula", "p ± 1,96 × √[p × (1 − p) / n]"),
                          tags$p("Ici, p est la proportion et n l’effectif disponible. Les quotas, les redressements et les non-réponses ne sont pas modélisés. Si seul l’échantillon global est connu, l’intervalle peut surestimer la précision du score. Il ne représente pas une probabilité de victoire.")),
               chart_card("05 · Les sources et la traçabilité", NULL,
-                         tags$p("Cette application travaille sur un instantané local extrait de Wikipédia. La base conserve, lorsqu’ils sont disponibles, l’identifiant de révision, l’institut, les dates de terrain et l’adresse de la notice source."),
+                         tags$p("La base de sondages, publiée sur data.gouv.fr et issue d’une extraction de Wikipédia, est actualisée quotidiennement lorsque l’application fonctionne. Elle conserve, lorsqu’ils sont disponibles, l’identifiant de révision, l’institut, les dates de terrain et l’adresse de la notice source."),
                          tags$p("Pour une analyse approfondie, vérifiez la notice originale : libellé de la question, population interrogée, effectif utilisé, méthode de recueil et redressements. Les liens de source sont accessibles dans les tables.")),
               chart_card("06 · Les limites à garder en tête", NULL,
                          tags$p("La couverture dépend des données présentes dans le fichier. Les valeurs manquantes et les informations de qualité sont signalées dans l’onglet « Données ». Le filtre des configurations principales retient uniquement celles explicitement identifiées comme telles."),

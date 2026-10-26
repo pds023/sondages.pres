@@ -22,11 +22,13 @@ Imports:
     plotly,
     shiny (>= 1.8.0),
     stats,
+    tools,
     utils
 Suggests:
     jsonlite,
     pkgload,
     roxygen2,
-    testthat (>= 3.0.0)
+    testthat (>= 3.0.0),
+    withr
 Config/testthat/edition: 3
 Config/roxygen2/version: 8.1.0

@@ -5,29 +5,62 @@
 #' @import shiny
 #' @noRd
 app_server <- function(input, output, session) {
-  polls <- load_app_data()
-  colors <- poll_colors(polls)
-  date_limits <- range(polls$terrain_fin)
+  data_source <- app_poll_source()
+  source <- watch_poll_data(data_source$path, session, status = data_source$status)
+  polls <- source$data
+  colors <- reactive(poll_colors(polls()))
+  date_limits <- reactive(range(polls()$terrain_fin))
   default_candidates <- function(tour) {
-    d <- polls[polls$tour == as.integer(tour), , drop = FALSE]
+    d <- polls(); d <- d[d$tour == as.integer(tour), , drop = FALSE]
+    if (!nrow(d)) return(character())
     e <- poll_candidate_estimates(d[d$terrain_fin >= max(d$terrain_fin) - 89, , drop = FALSE])
     utils::head(e$candidat_id[order(e$score, decreasing = TRUE)], 8)
   }
-  observeEvent(input$tour, {
-    d <- polls[polls$tour == as.integer(input$tour), , drop = FALSE]
+  previous_data <- NULL
+  observeEvent(polls(), {
+    d <- polls(); old <- previous_data
+    previous_data <<- d
+    if (is.null(old)) return()
+    limits <- range(d$terrain_fin); old_limits <- range(old$terrain_fin)
+    period <- as.Date(input$period)
+    if (length(period) != 2L || anyNA(period)) {
+      period <- limits
+    } else {
+      # Une borne restée au bord de la base suit les nouvelles observations.
+      if (period[1] == old_limits[1]) period[1] <- limits[1]
+      if (period[2] == old_limits[2]) period[2] <- limits[2]
+      period <- pmax(limits[1], pmin(limits[2], period))
+    }
+    updateDateRangeInput(session, "period", start = period[1], end = period[2],
+      min = limits[1], max = limits[2])
+    institutes <- sort(unique(d$institut))
+    selected <- if (setequal(input$institutes, unique(old$institut))) institutes else intersect(input$institutes, institutes)
+    updateSelectizeInput(session, "institutes", choices = institutes, selected = selected)
+  }, priority = 20)
+  previous_tour <- NULL
+  previous_candidates <- character()
+  observeEvent(list(input$tour, polls()), {
+    req(input$tour)
+    d <- polls(); d <- d[d$tour == as.integer(input$tour), , drop = FALSE]
     d <- d[!duplicated(d$candidat_id), , drop = FALSE]
     d <- d[order(d$candidat), , drop = FALSE]
+    selected <- if (!identical(previous_tour, input$tour)) default_candidates(input$tour) else
+      if (length(previous_candidates) && setequal(input$candidates, previous_candidates)) d$candidat_id else
+        intersect(input$candidates, d$candidat_id)
+    previous_tour <<- input$tour
+    previous_candidates <<- d$candidat_id
     updateSelectizeInput(session, "candidates", choices = stats::setNames(d$candidat_id, d$candidat),
-      selected = default_candidates(input$tour), server = TRUE)
+      selected = selected, server = TRUE)
   }, priority = 10)
   observeEvent(input$all_candidates, {
-    updateSelectizeInput(session, "candidates", selected = unique(polls$candidat_id[polls$tour == as.integer(input$tour)]))
+    d <- polls()
+    updateSelectizeInput(session, "candidates", selected = unique(d$candidat_id[d$tour == as.integer(input$tour)]))
   })
   observeEvent(input$clear_candidates, updateSelectizeInput(session, "candidates", selected = character()))
   observeEvent(input$reset_filters, {
     updateRadioButtons(session, "tour", selected = "1")
-    updateDateRangeInput(session, "period", start = date_limits[1], end = date_limits[2])
-    updateSelectizeInput(session, "institutes", selected = sort(unique(polls$institut)))
+    updateDateRangeInput(session, "period", start = date_limits()[1], end = date_limits()[2])
+    updateSelectizeInput(session, "institutes", selected = sort(unique(polls()$institut)))
     updateSelectizeInput(session, "candidates", selected = default_candidates("1"))
     updateCheckboxInput(session, "main_only", value = FALSE)
     updateSelectInput(session, "weighting", selected = "equal")
@@ -36,9 +69,10 @@ app_server <- function(input, output, session) {
   })
   period_data <- reactive({
     req(input$period, length(input$period) == 2L)
-    if (anyNA(input$period) || input$period[1] > input$period[2]) return(polls[FALSE, ])
-    polls[polls$terrain_fin >= input$period[1] & polls$terrain_fin <= input$period[2] &
-      polls$institut %in% input$institutes, , drop = FALSE]
+    d <- polls()
+    if (anyNA(input$period) || input$period[1] > input$period[2]) return(d[FALSE, ])
+    d[d$terrain_fin >= input$period[1] & d$terrain_fin <= input$period[2] &
+      d$institut %in% input$institutes, , drop = FALSE]
   })
   scenario_data <- reactive({
     d <- period_data()
@@ -55,6 +89,18 @@ app_server <- function(input, output, session) {
     d[d$terrain_fin >= as.Date(input$period[2]) - 89, , drop = FALSE]
   })
   weighting <- reactive(if (identical(input$weighting, "sample")) "sample" else "equal")
+  output$data_status <- renderUI({
+    if (!is.null(source$error())) return(tags$div(class = "alert alert-warning", role = "status",
+      "Le fichier de données est temporairement indisponible ou invalide. La dernière version valide reste affichée ; la mise à jour reprendra dès que le fichier sera lisible."))
+    d <- polls()
+    remote <- source$status()
+    tags$div(class = if (!is.null(remote$error)) "alert alert-warning" else "context-note", role = "status",
+      paste0("Base : ", fmt_number(nrow(d)), " observations · Dernier terrain : ",
+        fmt_date(max(d$terrain_fin)), " · "),
+      if (is.null(remote)) "Actualisation automatique du fichier local" else
+        if (!is.null(remote$error)) "Actualisation data.gouv.fr indisponible. Dernières données valides conservées ; nouvelle tentative dans une heure." else
+          paste0("data.gouv.fr · Vérifié le ", fmt_date(remote$last_success), " · Mise à jour quotidienne"))
+  })
   output$scope_label <- renderUI({
     d <- if (identical(input$view, "duels")) period_data()[period_data()$tour == 2, , drop = FALSE] else filtered_data()
     tags$div(class = "scope-label", tags$span(class = "status-dot"),
@@ -71,8 +117,8 @@ app_server <- function(input, output, session) {
       metric("CANDIDATS", length(unique(d$candidat_id)), paste(fmt_number(nrow(d)), "intentions de vote observées")),
       metric("DERNIER TERRAIN", if (nrow(d)) format(max(d$terrain_fin), "%d.%m.%Y") else "—", "Date de fin de collecte"))
   })
-  output$overview_trend <- plotly::renderPlotly(trend_chart(filtered_data(), colors, 90, weighting(), FALSE))
-  output$ranking_plot <- plotly::renderPlotly(ranking_chart(recent_data(), colors, weighting()))
+  output$overview_trend <- plotly::renderPlotly(trend_chart(filtered_data(), colors(), 90, weighting(), FALSE))
+  output$ranking_plot <- plotly::renderPlotly(ranking_chart(recent_data(), colors(), weighting()))
   output$overview_insight <- renderUI({
     d <- recent_data()
     missing <- length(unique(d$sondage_id[is.na(d$sample_n)]))
@@ -109,7 +155,7 @@ app_server <- function(input, output, session) {
   })
   output$trend_plot <- plotly::renderPlotly({
     window <- if (is.null(input$trend_window)) 90 else as.integer(input$trend_window)
-    trend_chart(filtered_data(), colors, window, weighting(), isTRUE(input$show_points))
+    trend_chart(filtered_data(), colors(), window, weighting(), isTRUE(input$show_points))
   })
   output$distribution_plot <- plotly::renderPlotly({
     d <- filtered_data()
@@ -120,7 +166,7 @@ app_server <- function(input, output, session) {
       values <- vapply(split(x$score, x$sondage_id), mean, numeric(1))
       p <- plotly::add_trace(p, y = values, x = rep(x$candidat[1], length(values)),
         type = "box", name = x$candidat[1], boxpoints = "all", jitter = 0.25,
-        marker = list(color = unname(colors[id]), size = 5), line = list(color = unname(colors[id])),
+        marker = list(color = unname(colors()[id]), size = 5), line = list(color = unname(colors()[id])),
         hovertemplate = "%{x}<br>%{y:.1f} %<extra></extra>")
     }
     plotly::layout(chart_style(p), showlegend = FALSE)
@@ -154,7 +200,7 @@ app_server <- function(input, output, session) {
       margin <- 1.96 * sqrt((d$score / 100) * (1 - d$score / 100) / d$sample_n) * 100
       args <- list(p = p, x = d$score, y = d$candidat, type = "bar", orientation = "h",
         name = paste(d$institut[1], fmt_date(d$terrain_fin[1]), paste0("n°", d$configuration[1])),
-        marker = list(color = if (nrow(b)) if (k == 1L) "#087F8C" else "#C1CCD7" else unname(colors[d$candidat_id])),
+        marker = list(color = if (nrow(b)) if (k == 1L) "#087F8C" else "#C1CCD7" else unname(colors()[d$candidat_id])),
         text = paste0(fmt_number(d$score, 1), " %"), textposition = if (isTRUE(input$scenario_intervals)) "none" else "outside", cliponaxis = FALSE,
         hovertemplate = "%{y}<br>%{x:.1f} %<extra>%{fullData.name}</extra>")
       if (isTRUE(input$scenario_intervals)) args$error_x <- list(type = "data", array = pmin(margin, 100 - d$score),
@@ -193,7 +239,7 @@ app_server <- function(input, output, session) {
     if (!nrow(a)) return(empty_chart())
     d <- scenario_data(); d <- d[d$scenario_signature == a$scenario_signature[1], , drop = FALSE]
     if (length(unique(d$sondage_id)) < 2L) return(empty_chart("Une seule enquête disponible avec exactement ces candidatures."))
-    trend_chart(d, colors, 1, weighting(), TRUE)
+    trend_chart(d, colors(), 1, weighting(), TRUE)
   })
   duels <- reactive(duel_observations(period_data()))
   observeEvent(duels(), {
@@ -212,7 +258,7 @@ app_server <- function(input, output, session) {
     for (side in c("a", "b")) {
       score <- d[[paste0(side, "_score")]]
       p <- plotly::add_trace(p, x = d$date, y = score, type = "scatter", mode = "lines+markers",
-        name = d[[side]][1], line = list(color = unname(colors[d[[paste0(side, "_id")]][1]]), width = 3), marker = list(size = 8),
+        name = d[[side]][1], line = list(color = unname(colors()[d[[paste0(side, "_id")]][1]]), width = 3), marker = list(size = 8),
         text = paste0(safe_text(d$institut), " · ", fmt_date(d$date), "<br>", fmt_number(score, 1), " %"), hoverinfo = "text+name")
     }
     plotly::layout(chart_style(p), yaxis = list(range = c(0, 100)),
@@ -312,7 +358,7 @@ app_server <- function(input, output, session) {
   output$download_data <- downloadHandler(filename = function() paste0("sondages-2027-selection-", Sys.Date(), ".csv"),
     content = function(file) write_poll_csv(filtered_data(), file), contentType = "text/csv;charset=utf-8")
   output$download_all <- downloadHandler(filename = "sondages-2027-base-complete.csv",
-    content = function(file) write_poll_csv(polls, file), contentType = "text/csv;charset=utf-8")
+    content = function(file) write_poll_csv(polls(), file), contentType = "text/csv;charset=utf-8")
   output$download_summary <- downloadHandler(filename = "sondages-2027-synthese-candidats.csv",
     content = function(file) write_poll_csv(candidate_summary(), file), contentType = "text/csv;charset=utf-8")
 }

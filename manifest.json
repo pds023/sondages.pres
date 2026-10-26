@@ -2543,7 +2543,7 @@
       "checksum": "08aa1da3115c456976705969ed34e9e0"
     },
     "DESCRIPTION": {
-      "checksum": "4ccaf66ce139920144376fee2b533e68"
+      "checksum": "4efd8b16159a0b861d3711b6c8589ffb"
     },
     "inst/app/www/app.css": {
       "checksum": "754b151e7ebaf9e64dc33e096e474943"
@@ -2555,7 +2555,7 @@
       "checksum": "686b6d3f1aac108cc0afe8c83f3ed0f5"
     },
     "inst/extdata/sondages-presidentielle-2027.csv": {
-      "checksum": "94375f7e7e7b0a17a9cc8d3cae7ac211"
+      "checksum": "312d7ba47cb55202ff75f1efc498bd1d"
     },
     "inst/golem-config.yml": {
       "checksum": "793029a46f1db9698a8c583c8b8866af"
@@ -2570,16 +2570,19 @@
       "checksum": "ea999175ba4deef82abe2413a7b200df"
     },
     "R/app_server.R": {
-      "checksum": "acbe2f5b61b26fd4388e632696ddd50f"
+      "checksum": "4f90b715579f991e0b2155e5fc58a7a5"
     },
     "R/app_ui.R": {
-      "checksum": "8ff9996e77372ee336839f34396c0ad3"
+      "checksum": "4c2863cd759aea2c78e43c5b8f3dede5"
     },
     "R/fct_data.R": {
       "checksum": "82830098433d03de7d942a086954d4ae"
     },
     "R/fct_display.R": {
-      "checksum": "423bc05ad8c7f7f35a4d213cfea8ff97"
+      "checksum": "60eb27aac098d9d134233f0691ed960e"
+    },
+    "R/fct_download.R": {
+      "checksum": "e8c140b23ca8b4341d9b7fcd3612a650"
     },
     "R/run_app.R": {
       "checksum": "7f90d6de609d728ee41ef37c7460c683"

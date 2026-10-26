@@ -1,10 +1,59 @@
 # Presentation helpers shared by the application views.
-load_app_data <- function() {
-  path <- getOption("sondages.pres.data", app_sys("extdata", "sondages-presidentielle-2027.csv"))
-  if (!nzchar(path) && file.exists("inst/extdata/sondages-presidentielle-2027.csv")) {
-    path <- "inst/extdata/sondages-presidentielle-2027.csv"
+app_data_path <- function() {
+  path <- getOption("sondages.pres.data")
+  if (!is.null(path)) {
+    if (!is.character(path) || length(path) != 1L || is.na(path) ||
+        !nzchar(path) || !file.exists(path) || dir.exists(path)) {
+      stop("L'option sondages.pres.data doit désigner un fichier CSV existant.", call. = FALSE)
+    }
+    return(normalizePath(path, winslash = "/", mustWork = TRUE))
   }
+  filename <- "sondages-presidentielle-2027.csv"
+  root <- app_sys()
+  if (!nzchar(root)) root <- getwd()
+  if (basename(root) == "inst") root <- dirname(root)
+  paths <- c(file.path(root, "raw-data", filename), file.path("raw-data", filename),
+             app_sys("extdata", filename), file.path("inst", "extdata", filename))
+  paths <- paths[file.exists(paths) & !dir.exists(paths)]
+  if (!length(paths)) stop("Fichier de sondages introuvable : ", filename, call. = FALSE)
+  normalizePath(paths[1L], winslash = "/", mustWork = TRUE)
+}
+
+load_app_data <- function(path = app_data_path()) {
   read_poll_data(path)
+}
+
+watch_poll_data <- function(path, session, intervalMillis = 2000, status = function() NULL) {
+  last_good <- NULL
+  get_path <- if (is.function(path)) path else function() path
+  current_path <- NULL
+  file_hash <- function() suppressWarnings(unname(tools::md5sum(current_path)))
+  state <- shiny::reactivePoll(intervalMillis, session,
+    checkFunc = function() {
+      current_path <<- get_path()
+      list(path = current_path, hash = file_hash(), status = status())
+    },
+    valueFunc = function() {
+      tryCatch({
+        before <- file_hash()
+        data <- read_poll_data(current_path)
+        after <- file_hash()
+        if (anyNA(c(before, after)) || !identical(before, after)) {
+          stop("Le fichier de sondages a changé pendant sa lecture. Nouvelle tentative au prochain contrôle.", call. = FALSE)
+        }
+        last_good <<- data
+        list(data = last_good, error = NULL, status = status())
+      }, error = function(e) list(data = last_good, error = conditionMessage(e), status = status()))
+    })
+  list(
+    data = shiny::reactive({
+      value <- state()
+      shiny::validate(shiny::need(!is.null(value$data), value$error))
+      value$data
+    }),
+    error = shiny::reactive(state()$error),
+    status = shiny::reactive(state()$status)
+  )
 }
 
 poll_colors <- function(data) {

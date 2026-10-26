@@ -18,7 +18,7 @@ initial_poll_inputs <- function(session, data) {
 
 testthat::test_that("every view builds real Plotly and DT output for ordinary selections", {
   shiny::testServer(app_server, {
-    initial_poll_inputs(session, polls)
+    initial_poll_inputs(session, polls())
     charts <- c("overview_trend", "ranking_plot", "trend_plot", "distribution_plot",
                 "scenario_plot", "scenario_history", "duel_plot", "duel_matrix",
                 "institute_volume", "institute_heatmap")
@@ -33,9 +33,10 @@ testthat::test_that("every view builds real Plotly and DT output for ordinary se
     trend <- widget_payload(output$overview_trend)
     bardella <- Filter(function(trace) identical(trace$name, "Jordan Bardella"), trend$data)
     testthat::expect_length(bardella, 1L)
-    testthat::expect_equal(max(as.Date(unlist(bardella[[1]]$x))), as.Date("2026-06-24"))
+    expected_last <- max(filtered_data()$terrain_fin[filtered_data()$candidat_id == "bardella"])
+    testthat::expect_equal(max(as.Date(unlist(bardella[[1]]$x))), expected_last)
     ranking <- widget_payload(output$ranking_plot)
-    testthat::expect_false("Jordan Bardella" %in% unlist(ranking$data[[1]]$y))
+    testthat::expect_setequal(unlist(ranking$data[[1]]$y), unique(recent_data()$candidat))
     matrix <- widget_payload(output$duel_matrix)$data[[1L]]$z
     testthat::expect_true(length(matrix) > 1L)
     testthat::expect_true(all(vapply(seq_along(matrix), function(i) is.null(matrix[[i]][[i]]), logical(1))))
@@ -48,7 +49,7 @@ testthat::test_that("every view builds real Plotly and DT output for ordinary se
 
 testthat::test_that("empty periods, institutes and candidates remain usable", {
   shiny::testServer(app_server, {
-    initial_poll_inputs(session, polls)
+    initial_poll_inputs(session, polls())
     charts <- c("overview_trend", "ranking_plot", "trend_plot", "distribution_plot",
                 "scenario_plot", "scenario_history", "duel_plot", "duel_matrix",
                 "institute_volume", "institute_heatmap")
@@ -60,10 +61,10 @@ testthat::test_that("empty periods, institutes and candidates remain usable", {
     testthat::expect_equal(nrow(candidate_summary()), 0L)
     for (id in c(charts, tables)) testthat::expect_no_error(widget_payload(output[[id]]))
     testthat::expect_true(nzchar(output$data_quality$html))
-    session$setInputs(period = range(polls$terrain_fin), institutes = character())
+    session$setInputs(period = range(polls()$terrain_fin), institutes = character())
     testthat::expect_equal(nrow(period_data()), 0L)
     for (id in c(charts, tables)) testthat::expect_no_error(widget_payload(output[[id]]))
-    session$setInputs(institutes = unique(polls$institut), candidates = character())
+    session$setInputs(institutes = unique(polls()$institut), candidates = character())
     testthat::expect_equal(nrow(filtered_data()), 0L)
     testthat::expect_equal(nrow(candidate_summary()), 0L)
     testthat::expect_gt(nrow(scenario_data()), 0L)
@@ -74,8 +75,8 @@ testthat::test_that("empty periods, institutes and candidates remain usable", {
 
 testthat::test_that("sample weighting handles a study with no sample without inventing scores", {
   shiny::testServer(app_server, {
-    initial_poll_inputs(session, polls)
-    missing_scenario <- polls$scenario_id[which(polls$sondage_id == "ifop-2026-07-08" & polls$tour == 1)[1]]
+    initial_poll_inputs(session, polls())
+    missing_scenario <- polls()$scenario_id[which(polls()$sondage_id == "ifop-2026-07-08" & polls()$tour == 1)[1]]
     session$setInputs(period = as.Date(c("2026-07-08", "2026-07-08")), institutes = "Ifop",
                       weighting = "sample", show_points = FALSE, scenario_id = missing_scenario)
     testthat::expect_gt(nrow(filtered_data()), 0L)
@@ -99,7 +100,7 @@ testthat::test_that("sample weighting handles a study with no sample without inv
 
 testthat::test_that("scenario comparison preserves absent candidates and exact-lineup history", {
   shiny::testServer(app_server, {
-    initial_poll_inputs(session, polls)
+    initial_poll_inputs(session, polls())
     meta <- scenario_data()[!duplicated(scenario_data()$scenario_id), ]
     first <- meta$scenario_id[1]
     other <- meta$scenario_id[meta$sondage_id == meta$sondage_id[1] &
@@ -145,7 +146,7 @@ testthat::test_that("scenario comparison preserves absent candidates and exact-l
 
 testthat::test_that("downloads are UTF-8 BOM CSVs containing the actual filtered observations", {
   shiny::testServer(app_server, {
-    initial_poll_inputs(session, polls)
+    initial_poll_inputs(session, polls())
     session$setInputs(institutes = "Harris", candidates = c("philippe", "le-pen"),
                       period = as.Date(c("2026-09-01", "2026-10-08")))
     path <- output$download_data
@@ -162,7 +163,7 @@ testthat::test_that("downloads are UTF-8 BOM CSVs containing the actual filtered
     summary <- utils::read.csv2(output$download_summary, fileEncoding = "UTF-8-BOM", check.names = FALSE)
     testthat::expect_equal(summary, candidate_summary(), ignore_attr = TRUE)
     complete <- utils::read.csv2(output$download_all, fileEncoding = "UTF-8-BOM", check.names = FALSE)
-    testthat::expect_equal(nrow(complete), nrow(polls))
+    testthat::expect_equal(nrow(complete), nrow(polls()))
     session$setInputs(candidates = character())
     empty <- utils::read.csv2(output$download_data, fileEncoding = "UTF-8-BOM", check.names = FALSE)
     testthat::expect_equal(nrow(empty), 0L)

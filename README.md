@@ -1,6 +1,6 @@
 # Observatoire · Présidentielle 2027
 
-Une application **Shiny / Golem** pour explorer les intentions de vote, comparer les hypothèses de candidature et consulter les sondages à leur source. L'interface et les analyses sont en français. Les données sont embarquées : l'application fonctionne sans télécharger de nouveaux sondages au démarrage.
+Une application **Shiny / Golem** pour explorer les intentions de vote, comparer les hypothèses de candidature et consulter les sondages à leur source. L'interface et les analyses sont en français. L'application actualise automatiquement les sondages depuis data.gouv.fr et conserve une copie embarquée utilisable si la source est indisponible.
 
 ## Lancer l'application
 
@@ -40,12 +40,29 @@ Les candidatures testées peuvent changer d'un sondage à l'autre. Une moyenne e
 
 ## Données et mise à jour
 
-- `raw-data/sondages-presidentielle-2027.csv` est le fichier source fourni, conservé intact.
-- `inst/extdata/sondages-presidentielle-2027.csv` est sa copie embarquée dans le package.
+- La source actualisée est le [CSV publié sur data.gouv.fr](https://www.data.gouv.fr/api/1/datasets/r/6b97e100-6031-42e0-9c93-aeb9dd49ef0d).
+- `raw-data/sondages-presidentielle-2027.csv` est la copie locale du projet, utilisée en secours ou en mode local.
+- `inst/extdata/sondages-presidentielle-2027.csv` est la copie de secours embarquée pour l'application déployée ou le package installé.
 - Le jeu de données provient d'une extraction de tableaux Wikipédia. Les liens vers les notices et les sources, lorsqu'ils sont renseignés, permettent de vérifier les enquêtes originales.
 - Les valeurs absentes, les scénarios multiples et les variations de libellé font partie des limites du jeu de données. La vue Méthode explicite leur traitement.
 
-Pour utiliser une version locale actualisée au même format, indiquer son chemin **avant de démarrer** :
+Par défaut, l'application télécharge et valide le CSV au démarrage, puis une fois par nouvelle date dans le fuseau **Europe/Paris**, tant qu'une session est active. Les sessions d'un même processus partagent ce téléchargement. En cas d'échec, elle conserve les dernières données valides et réessaie après une heure ; sans téléchargement valide, elle utilise le fichier de `raw-data/` s'il existe, sinon la copie embarquée.
+
+Les téléchargements sont stockés dans un cache temporaire du processus et ne modifient jamais les fichiers de `raw-data/` ou `inst/extdata/`. Ce cache disparaît au redémarrage : un nouveau téléchargement est alors effectué. Sur Connect Cloud, une application arrêtée ou en veille ne peut rien télécharger ; l'actualisation reprend lors de sa prochaine visite. Il n'est pas nécessaire de redéployer pour chaque actualisation du CSV sur data.gouv.fr une fois cette version de l'application publiée.
+
+Les filtres choisis sont conservés lorsqu'ils restent disponibles. Une période allant jusqu'au dernier terrain s'étend aux nouvelles dates ; une sélection de tous les instituts ou de tous les candidats inclut les nouveaux arrivants.
+
+Pour travailler uniquement avec la copie locale du projet, désactiver le téléchargement **avant de démarrer** :
+
+```r
+options(sondages.pres.auto_download = FALSE)
+pkgload::load_all(".")
+sondages.pres::run_app()
+```
+
+Remplacer ou enregistrer alors **le même fichier** `raw-data/sondages-presidentielle-2027.csv`, en conservant son nom et ses colonnes. L'application vérifie les modifications toutes les deux secondes et recharge les données dans les sessions ouvertes. Déposer un fichier avec un autre nom ne change pas la source sélectionnée.
+
+Pour utiliser un fichier à un autre emplacement, indiquer son chemin **avant de démarrer** :
 
 ```r
 options(sondages.pres.data = "C:/chemin/sondages-presidentielle-2027.csv")
@@ -53,7 +70,17 @@ pkgload::load_all(".")
 sondages.pres::run_app()
 ```
 
-Sans cette option, la copie embarquée est utilisée. Aucun rafraîchissement internet n'est effectué automatiquement. Pour mettre à jour le package distribué, remplacer explicitement la copie dans `inst/extdata/` après vérification de la nouvelle source.
+L'option `sondages.pres.data` donne la priorité à ce fichier et désactive également le téléchargement automatique. Ce fichier est surveillé toutes les deux secondes. Si un fichier local devient temporairement absent ou invalide pendant une sauvegarde, les sessions ouvertes gardent la dernière version valide et affichent un avertissement jusqu'à sa correction.
+
+Si un script produit le CSV ligne par ligne, lui faire écrire un fichier temporaire puis remplacer le fichier surveillé une fois l'export terminé : un fichier partiel contenant déjà des lignes valides ne peut pas être distingué d'une base volontairement plus courte.
+
+Une application hébergée sur **Posit Connect Cloud** n'a pas accès aux fichiers du PC. Pour publier un changement de code, de dépendances ou de copie de secours, exécuter depuis la racine du projet :
+
+```r
+source("dev/generate_manifest.R")
+```
+
+Ce script valide le CSV de `raw-data/`, le copie dans `inst/extdata/`, vérifie leur identité et régénère `manifest.json`. Publier ensuite sur GitHub les fichiers modifiés de l'application, la copie dans `inst/extdata/` et `manifest.json`, puis redéployer dans Connect Cloud. Cette étape est nécessaire pour installer le mécanisme de téléchargement automatique, puis seulement lors d'un changement des fichiers publiés. Le même script synchronise la copie de secours avant de construire un package ou de déployer sur shinyapps.io.
 
 ## Vérifier et déployer
 
@@ -65,11 +92,12 @@ pkgload::load_all(".")
 testthat::test_local(".")
 ```
 
-Pour un hébergement shinyapps.io, configurer son compte avec `rsconnect`, puis déployer depuis la racine :
+Pour un hébergement shinyapps.io, configurer son compte avec `rsconnect`, puis synchroniser les données et déployer depuis la racine :
 
 ```r
 install.packages("rsconnect")
 # Configurer une première fois le compte via rsconnect::setAccountInfo(...).
+source("dev/generate_manifest.R")
 rsconnect::deployApp(
   appDir = ".",
   appFiles = c(

@@ -4,7 +4,7 @@ Fichiers préparés
 - manifest.json : manifeste de déploiement Posit Connect Cloud, à la racine, avec app.R.
 - inst/app/www/logo-observatoire-2027.png : logo carré PNG, 1 254 × 1 254 pixels.
 - publication/description-data-gouv.txt : titre et courte description à copier.
-- dev/generate_manifest.R : régénération du manifeste après une modification.
+- dev/generate_manifest.R : validation et copie des données, puis régénération du manifeste.
 - publication/logo-prompt.txt : prompt et outil utilisés pour le logo.
 
 1. Héberger l’application
@@ -23,14 +23,42 @@ Mots-clés proposés : presidentielle-2027, sondages, intentions-de-vote, electi
 visualisation, shiny.
 Une capture d’écran des graphiques peut compléter le logo pour montrer l’usage.
 
-3. Maintenir le manifeste
+3. Actualiser les données et le manifeste
+La source téléchargée automatiquement est :
+https://www.data.gouv.fr/api/1/datasets/r/6b97e100-6031-42e0-9c93-aeb9dd49ef0d
+Le téléchargement et la validation ont lieu au démarrage, puis une fois par nouvelle
+date Europe/Paris tant qu'une session est active. Les sessions d'un même processus
+partagent le téléchargement. En cas d'échec, les dernières données valides restent
+utilisées et une nouvelle tentative a lieu après une heure. Sans téléchargement
+valide, l'application utilise raw-data/ s'il existe, sinon la copie embarquée.
+
+Le cache est temporaire et propre au processus ; les téléchargements ne modifient
+jamais raw-data/ ou inst/extdata/. Un redémarrage provoque un nouveau téléchargement.
+Une application arrêtée ou en veille ne télécharge rien : sur Connect Cloud,
+l'actualisation reprend lors de la prochaine visite. Après le déploiement initial
+de cette version, les actualisations du CSV sur data.gouv.fr ne demandent plus
+de redéployer l'application.
+
+Pour travailler en mode local, définir options(sondages.pres.auto_download = FALSE)
+avant de lancer l'application, puis remplacer raw-data/sondages-presidentielle-2027.csv
+en conservant son nom et ses colonnes. Les sessions ouvertes détectent les changements
+toutes les deux secondes. Un autre nom de fichier n'est pas sélectionné.
+Définir options(sondages.pres.data = "chemin/du/fichier.csv") permet de surveiller un
+autre emplacement et désactive elle aussi le téléchargement automatique.
+
 Le manifeste livré est construit avec R 4.4.3. Depuis la racine du projet,
 exécuter dans une session R 4.4.3 : source("dev/generate_manifest.R").
+Ce script valide le CSV de raw-data/, synchronise sa copie dans inst/extdata/, puis
+génère manifest.json avec les empreintes des fichiers effectivement publiés.
 La version de R et les versions de packages de la session sont reprises dans le
 manifeste : pour changer de version, vérifier sa disponibilité sur Connect Cloud.
-Régénérer le manifeste après un changement de fichiers ou de dépendances, puis
-republier. Les données restent celles du fichier embarqué ; leur actualisation
-nécessite une mise à jour du fichier et un nouveau déploiement.
+Régénérer le manifeste pour publier un changement de code, de dépendances ou de copie
+de secours dans inst/extdata/. Cette étape installe notamment la présente version
+avec téléchargement automatique ; elle n'est pas requise à chaque mise à jour du
+CSV distant.
+Publier sur GitHub les fichiers de l'application modifiés, la copie dans inst/extdata/
+et manifest.json, puis relancer le déploiement dans Connect Cloud. L'application
+hébergée ne peut pas lire un fichier qui vient d'être enregistré sur votre PC.
 
 Documentation officielle
 https://docs.posit.co/connect-cloud/how-to/r/shiny-r.html
