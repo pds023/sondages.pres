@@ -156,6 +156,32 @@ app_ui <- function(request) {
                        DT::DTOutput("institute_table"))
           ),
           bslib::nav_panel(
+            "Comparer 2017 · 2022", value = "history",
+            note(tags$strong("Trois campagnes, un même calendrier. "),
+                 "Les sondages sont alignés sur la date du premier tour : 23 avril 2017, 10 avril 2022 et 18 avril 2027. Les filtres de la barre latérale ne s’appliquent pas à cette vue ; la base 2027 y suit ses mises à jour."),
+            tags$div(class = "inline-controls",
+                     selectInput("history_series", "Courant ou candidat", choices = NULL),
+                     selectInput("history_window", "Fenêtre de moyenne", selected = "60",
+                                 choices = c("30 jours" = "30", "60 jours" = "60", "90 jours" = "90"))),
+            uiOutput("history_kpis"),
+            chart_card("Trois campagnes alignées sur le premier tour",
+                       "Moyenne glissante calculée chaque semaine. Chaque institut compte une fois par fenêtre, même lorsqu’il publie des vagues quotidiennes. Losanges : résultats officiels.",
+                       plotly::plotlyOutput("history_trend", height = "440px")),
+            chart_card("Au même stade de la campagne",
+                       "Le poids des familles politiques dans la fenêtre qui précède le dernier sondage 2027, à la même distance du premier tour en 2017 et en 2022. Traits verticaux : résultats finaux.",
+                       plotly::plotlyOutput("history_snapshot", height = "430px"),
+                       note("Gauche et écologistes : LO, NPA, LFI, PCF, PS, écologistes, Place publique, divers gauche. Centre : En marche puis Renaissance, MoDem, Horizons. Droite et centre droit : LR, UDI. Extrême droite : FN puis RN, Reconquête, Debout la France, Les Patriotes. Le détail figure dans la vue « Méthode »."),
+                       DT::DTOutput("history_snapshot_table")),
+            chart_card("Les sondages face aux urnes",
+                       "Moyenne de la dernière enquête de chaque institut, terminée dans la semaine précédant le scrutin, face au résultat officiel.",
+                       radioButtons("history_round", "Tour de scrutin", inline = TRUE,
+                                    choices = c("Premier tour" = "1", "Second tour" = "2")),
+                       uiOutput("history_errors_box"),
+                       uiOutput("history_error_note")),
+            chart_card("Le détail des écarts", "Écart = moyenne des derniers sondages − résultat officiel, en points de pourcentage.",
+                       DT::DTOutput("history_error_table"))
+          ),
+          bslib::nav_panel(
             "Données", value = "data",
             uiOutput("data_quality"),
             chart_card("Explorer les données", "La table ci-dessous reflète vos filtres. Recherchez un candidat, une enquête ou une configuration.",
@@ -193,7 +219,15 @@ app_ui <- function(request) {
               chart_card("06 · Les limites à garder en tête", NULL,
                          tags$p("La couverture dépend des données présentes dans le fichier. Les valeurs manquantes et les informations de qualité sont signalées dans l’onglet « Données ». Le filtre des configurations principales retient uniquement celles explicitement identifiées comme telles."),
                          tags$p("Le lissage utilise une fenêtre glissante, calculée seulement aux dates observées, sans extrapolation. La table des candidats indique leur couverture et la date de leur dernière observation."),
-                         tags$p("Le lissage ne supprime pas l’incertitude. Les variations modestes, les comparaisons entre instituts et les duels rarement testés demandent une prudence particulière."))
+                         tags$p("Le lissage ne supprime pas l’incertitude. Les variations modestes, les comparaisons entre instituts et les duels rarement testés demandent une prudence particulière.")),
+              chart_card("07 · Comparer les élections", NULL,
+                         tags$p("La vue « Comparer 2017 · 2022 » aligne les campagnes sur le premier tour : 23 avril 2017, 10 avril 2022 et 18 avril 2027, date annoncée par service-public.gouv.fr. Les sondages 2017 sont extraits de la page Wikipédia « Liste de sondages sur l’élection présidentielle française de 2017 » (révision 241553082). Ceux de 2022 viennent du fichier presidentielle.json (format NSPPolls), qui renvoie aux notices de la Commission des sondages."),
+                         tags$p("Les configurations d’une enquête sont d’abord moyennées. Les moyennes glissantes, calculées chaque semaine, font ensuite compter chaque institut une fois par fenêtre : une vague quotidienne ne pèse pas plus qu’une enquête mensuelle. Les écarts finaux comparent la dernière enquête de chaque institut, terminée dans les sept jours précédant le scrutin, aux résultats proclamés par le Conseil constitutionnel."),
+                         tags$p("Les candidatures, les méthodes et le contexte changent d’une élection à l’autre : un même niveau à la même date ne présage pas du même résultat. Les scores publiés « < 0,5 % » sont codés 0,25 %. En 2022, les candidatures encore non désignées (écologiste, LR ou d’extrême gauche) sont conservées sous un libellé générique.")),
+              chart_card("08 · Les familles politiques", NULL,
+                         tags$p("Pour comparer des offres électorales différentes, chaque candidature est rattachée à une famille selon son étiquette. Gauche et écologistes : LO, NPA, LFI et Front de gauche, PCF, PS, PRG, EELV et Les Écologistes, Place publique, divers gauche. Centre : En marche puis Renaissance, MoDem, Horizons, Agir. Droite et centre droit : UMP puis LR, UDI, PCD. Extrême droite : FN puis RN, Reconquête, Debout la France, Les Patriotes, MPF."),
+                         tags$p("Les autres étiquettes (Résistons, UPR, Solidarité et progrès, Parti animaliste, candidatures sans étiquette…) forment une catégorie à part. Le score d’une famille est la somme de ses candidats dans chaque configuration."),
+                         tags$p("Ce classement est une convention de lecture, discutable à la marge, notamment pour Debout la France. Il sert à comparer des rapports de force et ne qualifie pas les candidats."))
             )
           )
         ),
@@ -207,7 +241,7 @@ app_ui <- function(request) {
 #' Add external Resources to the Application
 #'
 #' @import shiny
-#' @importFrom golem add_resource_path activate_js favicon bundle_resources
+#' @importFrom golem add_resource_path favicon bundle_resources
 #' @noRd
 golem_add_external_resources <- function() {
   add_resource_path("www", app_sys("app/www"))

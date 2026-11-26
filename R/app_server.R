@@ -102,6 +102,8 @@ app_server <- function(input, output, session) {
           paste0("data.gouv.fr · Vérifié le ", fmt_date(remote$last_success), " · Mise à jour quotidienne"))
   })
   output$scope_label <- renderUI({
+    if (identical(input$view, "history")) return(tags$div(class = "scope-label", tags$span(class = "status-dot"),
+      "2017 · 2022 · 2027 · Campagnes alignées sur le premier tour"))
     d <- if (identical(input$view, "duels")) period_data()[period_data()$tour == 2, , drop = FALSE] else filtered_data()
     tags$div(class = "scope-label", tags$span(class = "status-dot"),
       paste0(if (identical(input$view, "duels") || identical(input$tour, "2")) "Second tour" else "Premier tour", " · ",
@@ -109,13 +111,11 @@ app_server <- function(input, output, session) {
   })
   output$kpis <- renderUI({
     d <- filtered_data()
-    metric <- function(label, value, detail) tags$div(class = "metric-card",
-      tags$div(class = "metric-label", label), tags$div(class = "metric-value", value), tags$div(class = "metric-detail", detail))
     tags$div(class = "kpi-grid",
-      metric("SONDAGES", length(unique(d$sondage_id)), paste(length(unique(d$institut)), "instituts dans la sélection")),
-      metric("CONFIGURATIONS", length(unique(d$scenario_id)), "Configurations testées dans les enquêtes"),
-      metric("CANDIDATS", length(unique(d$candidat_id)), paste(fmt_number(nrow(d)), "intentions de vote observées")),
-      metric("DERNIER TERRAIN", if (nrow(d)) format(max(d$terrain_fin), "%d.%m.%Y") else "—", "Date de fin de collecte"))
+      metric_card("SONDAGES", length(unique(d$sondage_id)), paste(length(unique(d$institut)), "instituts dans la sélection")),
+      metric_card("CONFIGURATIONS", length(unique(d$scenario_id)), "Configurations testées dans les enquêtes"),
+      metric_card("CANDIDATS", length(unique(d$candidat_id)), paste(fmt_number(nrow(d)), "intentions de vote observées")),
+      metric_card("DERNIER TERRAIN", if (nrow(d)) fmt_date(max(d$terrain_fin)) else "—", "Date de fin de collecte"))
   })
   output$overview_trend <- plotly::renderPlotly(trend_chart(filtered_data(), colors(), 90, weighting(), FALSE))
   output$ranking_plot <- plotly::renderPlotly(ranking_chart(recent_data(), colors(), weighting()))
@@ -279,8 +279,8 @@ app_server <- function(input, output, session) {
       if (!any(valid)) next
       a <- x$a[1]; b <- x$b[1]
       z[a, b] <- stats::weighted.mean(m[valid, "a"], w[valid]); z[b, a] <- stats::weighted.mean(m[valid, "b"], w[valid])
-      labels[a, b] <- paste0(a, " face à ", b, "<br>", fmt_number(z[a, b], 1), " % · ", sum(valid), " sondage(s)")
-      labels[b, a] <- paste0(b, " face à ", a, "<br>", fmt_number(z[b, a], 1), " % · ", sum(valid), " sondage(s)")
+      labels[a, b] <- paste0(safe_text(a), " face à ", safe_text(b), "<br>", fmt_number(z[a, b], 1), " % · ", sum(valid), " sondage(s)")
+      labels[b, a] <- paste0(safe_text(b), " face à ", safe_text(a), "<br>", fmt_number(z[b, a], 1), " % · ", sum(valid), " sondage(s)")
     }
     if (!any(is.finite(z))) return(empty_chart("Aucun effectif exploitable pour cette pondération."))
     p <- plotly::plot_ly(x = candidates, y = candidates, z = z, text = labels, type = "heatmap",
@@ -361,4 +361,85 @@ app_server <- function(input, output, session) {
     content = function(file) write_poll_csv(polls(), file), contentType = "text/csv;charset=utf-8")
   output$download_summary <- downloadHandler(filename = "sondages-2027-synthese-candidats.csv",
     content = function(file) write_poll_csv(candidate_summary(), file), contentType = "text/csv;charset=utf-8")
+
+  # Comparaison 2017 · 2022 · 2027 : calculée à la première ouverture de la vue.
+  history <- reactive(compare_data(polls()))
+  history_studies <- reactive(compare_studies(history()))
+  history_stage <- reactive({
+    s <- history_studies()
+    days <- s$jours[s$election == "2027"]
+    if (length(days)) min(days) else NA_integer_
+  })
+  history_window <- reactive(if (is.null(input$history_window)) 60L else as.integer(input$history_window))
+  history_round <- reactive(if (is.null(input$history_round)) 1L else as.integer(input$history_round))
+  history_errors <- reactive(compare_errors(history()))
+  history_snapshot <- reactive({
+    s <- history_studies(); stage <- history_stage()
+    compare_average(s[startsWith(s$candidat_id, "f:"), , drop = FALSE], if (is.finite(stage)) stage else integer(), history_window())
+  })
+  observeEvent(list(input$view, polls()), {
+    req(identical(input$view, "history"))
+    choices <- compare_series_choices(history_studies())
+    current <- isolate(input$history_series)
+    updateSelectInput(session, "history_series", choices = choices,
+      selected = if (length(current) && current %in% unlist(choices)) current else choices[[1]][[1]])
+  })
+  output$history_kpis <- renderUI({
+    s <- history_studies(); stage <- history_stage(); e <- history_errors()
+    at_stage <- function(year) if (is.finite(stage)) length(unique(s$sondage_id[s$election == year & s$jours >= stage])) else "—"
+    gap <- function(year) paste(fmt_number(mean(abs(e$ecart[e$election == year & e$tour == 1])), 1), "pt")
+    tags$div(class = "kpi-grid",
+      metric_card("STADE DE LA CAMPAGNE", if (is.finite(stage)) paste0("J-", stage) else "—",
+        paste("Dernier sondage 2027 de premier tour · vote le", fmt_date(election_dates[["2027"]][1]))),
+      metric_card("SONDAGES 2027", at_stage("2027"),
+        paste0("Contre ", at_stage("2022"), " en 2022 et ", at_stage("2017"), " en 2017 au même stade")),
+      metric_card("ÉCART MOYEN 2022", gap("2022"), "Entre derniers sondages et résultats du 1er tour"),
+      metric_card("ÉCART MOYEN 2017", gap("2017"), "Entre derniers sondages et résultats du 1er tour"))
+  })
+  output$history_trend <- plotly::renderPlotly({
+    req(input$history_series)
+    serie <- input$history_series
+    results <- if (startsWith(serie, "f:")) {
+      r <- compare_family_results(); r[r$famille == sub("^f:", "", serie), , drop = FALSE]
+    } else election_results[election_results$tour == 1L & election_results$candidat_id == serie, , drop = FALSE]
+    history_trend_chart(compare_trend(history_studies(), serie, history_window(), history_stage()), results, history_stage())
+  })
+  output$history_snapshot <- plotly::renderPlotly(
+    history_snapshot_chart(history_snapshot(), compare_family_results(), history_stage()))
+  output$history_snapshot_table <- DT::renderDT({
+    s <- history_snapshot(); r <- compare_family_results(); stage <- history_stage()
+    if (!nrow(s)) return(poll_table(data.frame(Message = "Aucun sondage 2027 de premier tour.")))
+    family <- names(compare_families)
+    at <- function(year) round(s$score[match(paste(year, paste0("f:", family)), paste(s$election, s$candidat_id))], 1)
+    final <- function(year) r$score[match(paste(year, family), paste(r$election, r$famille))]
+    tab <- data.frame(unname(compare_families), at("2017"), final("2017"), at("2022"), final("2022"), at("2027"))
+    names(tab) <- c("Famille", paste0("2017 à J-", stage, " (%)"), "Résultat 2017 (%)",
+                    paste0("2022 à J-", stage, " (%)"), "Résultat 2022 (%)", paste0("2027 à J-", stage, " (%)"))
+    poll_table(tab, 5, dom = "t")
+  }, server = TRUE)
+  # One row per candidate: the second round needs far less height than the first.
+  output$history_errors_box <- renderUI(
+    plotly::plotlyOutput("history_errors", height = if (history_round() == 1L) "640px" else "340px"))
+  output$history_errors <- plotly::renderPlotly({
+    e <- history_errors()
+    history_error_chart(e[e$tour == history_round(), , drop = FALSE])
+  })
+  output$history_error_note <- renderUI({
+    e <- history_errors(); e <- e[e$tour == history_round(), , drop = FALSE]
+    signed <- function(x) paste0(ifelse(x > 0, "+", "−"), fmt_number(abs(x), 1), " pt")
+    lines <- lapply(split(e, e$election), function(x) {
+      low <- x[which.min(x$ecart), ]; high <- x[which.max(x$ecart), ]
+      tags$li(tags$strong(x$election[1], " : "), paste0("écart moyen de ", fmt_number(mean(abs(x$ecart)), 1),
+        " pt. Plus forte sous-estimation : ", low$candidat, " (", signed(low$ecart), "). Plus forte surestimation : ",
+        high$candidat, " (", signed(high$ecart), ")."))
+    })
+    tags$div(class = "context-note", tags$ul(lines),
+      "Ces écarts mêlent erreur de mesure et mouvements de dernière minute : ils ne se reportent pas mécaniquement sur 2027.")
+  })
+  output$history_error_table <- DT::renderDT({
+    e <- history_errors()
+    poll_table(data.frame(Élection = e$election, Tour = e$tour, Candidat = e$candidat,
+      `Derniers sondages (%)` = round(e$sondages, 1), `Résultat (%)` = e$resultat,
+      `Écart (points)` = round(e$ecart, 1), Instituts = e$n_instituts, check.names = FALSE), 15)
+  }, server = TRUE)
 }

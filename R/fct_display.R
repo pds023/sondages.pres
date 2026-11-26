@@ -73,6 +73,12 @@ fmt_number <- function(x, digits = 0) {
 }
 
 fmt_date <- function(x) format(as.Date(x), "%d/%m/%Y")
+
+metric_card <- function(label, value, detail) {
+  shiny::tags$div(class = "metric-card", shiny::tags$div(class = "metric-label", label),
+    shiny::tags$div(class = "metric-value", value), shiny::tags$div(class = "metric-detail", detail))
+}
+
 safe_text <- function(x) as.character(htmltools::htmlEscape(x))
 
 notice_link <- function(url) {
@@ -103,7 +109,7 @@ empty_chart <- function(message = "Aucune observation pour cette sélection.") {
   p <- chart_style(p, "")
   plotly::layout(p, xaxis = list(visible = FALSE), yaxis = list(visible = FALSE),
     annotations = list(list(text = message, x = 0.5, y = 0.5, xref = "paper", yref = "paper",
-                            showarrow = FALSE, font = list(size = 15, color = "#7B8798"))))
+                            showarrow = FALSE, font = list(size = 15, color = "#617185"))))
 }
 
 trend_chart <- function(data, colors, window = 90, weighting = "equal", points = TRUE) {
@@ -148,11 +154,11 @@ ranking_chart <- function(data, colors, weighting = "equal") {
     yaxis = list(categoryorder = "array", categoryarray = estimates$candidat), showlegend = FALSE)
 }
 
-poll_table <- function(data, page_length = 8, escape = TRUE, selection = "none") {
+poll_table <- function(data, page_length = 8, escape = TRUE, selection = "none", dom = "ft<'table-bottom'lip>") {
   DT::datatable(data, rownames = FALSE, escape = escape, selection = selection,
     class = "compact stripe hover", filter = "none",
     options = list(pageLength = page_length, lengthMenu = c(8, 15, 30, 50), scrollX = TRUE,
-      autoWidth = TRUE, order = list(), dom = "ft<'table-bottom'lip>",
+      autoWidth = TRUE, order = list(), dom = dom,
       language = list(search = "Rechercher :", lengthMenu = "_MENU_ lignes",
         info = "_START_–_END_ sur _TOTAL_ lignes", infoEmpty = "Aucune ligne",
         infoFiltered = "(sur _MAX_ au total)", zeroRecords = "Aucun résultat pour cette recherche",

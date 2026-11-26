@@ -16,7 +16,7 @@ sondages.pres::run_app()
 
 R ≥ 4.1, Shiny ≥ 1.8 et bslib ≥ 0.9 sont nécessaires. Une fois les dépendances installées, `shiny::runApp(".")` fonctionne également grâce au fichier `app.R`. Le script `dev/run_dev.R` fournit le même point d'entrée pour le développement.
 
-## Explorer les sept vues
+## Explorer les huit vues
 
 | Vue | Ce qu'elle permet d'examiner |
 | --- | --- |
@@ -25,6 +25,7 @@ R ≥ 4.1, Shiny ≥ 1.8 et bslib ≥ 0.9 sont nécessaires. Une fois les dépen
 | Scénarios | Les résultats d'une configuration complète, la comparaison de deux configurations, les intervalles approximatifs et l'historique à liste de candidats identique. |
 | Second tour | Les courbes de chaque duel, la matrice des confrontations et les enquêtes détaillées. |
 | Instituts | Le nombre d'enquêtes et les écarts descriptifs de chaque institut à la moyenne des données sélectionnées. |
+| Comparer 2017 · 2022 | Les campagnes 2017, 2022 et 2027 alignées sur le premier tour : trajectoires d'une famille politique ou d'un candidat récurrent, rapport de force au même stade, et écarts entre les derniers sondages et les résultats officiels. |
 | Données | Les observations détaillées, les indicateurs de qualité, les notices et l'export CSV de la sélection, de la base complète ou de la synthèse. |
 | Méthode | Les règles de calcul, la qualité des données et les limites d'interprétation. |
 
@@ -45,6 +46,7 @@ Les candidatures testées peuvent changer d'un sondage à l'autre. Une moyenne e
 - `inst/extdata/sondages-presidentielle-2027.csv` est la copie de secours embarquée pour l'application déployée ou le package installé.
 - Le jeu de données provient d'une extraction de tableaux Wikipédia. Les liens vers les notices et les sources, lorsqu'ils sont renseignés, permettent de vérifier les enquêtes originales.
 - Les valeurs absentes, les scénarios multiples et les variations de libellé font partie des limites du jeu de données. La vue Méthode explicite leur traitement.
+- `inst/extdata/sondages-presidentielle-2017.csv` et `inst/extdata/sondages-presidentielle-2022.csv` alimentent la vue de comparaison, avec les mêmes colonnes que la base 2027. Ils sont produits par `source("dev/build_historique.R")` : 2017 depuis la page Wikipédia des sondages (révision 241553082, figée pour que le résultat soit reproductible), 2022 depuis `raw-data/presidentielle.json` (format NSPPolls). Ces fichiers ne changent pas et ne sont jamais téléchargés par l'application.
 
 Par défaut, l'application télécharge et valide le CSV au démarrage, puis une fois par nouvelle date dans le fuseau **Europe/Paris**, tant qu'une session est active. Les sessions d'un même processus partagent ce téléchargement. En cas d'échec, elle conserve les dernières données valides et réessaie après une heure ; sans téléchargement valide, elle utilise le fichier de `raw-data/` s'il existe, sinon la copie embarquée.
 

@@ -130,6 +130,13 @@ poll_empty_estimates <- function() {
              max_score = numeric(), last_date = as.Date(character()))
 }
 
+# Sort by group, latest date first (ties keep their order): the first row of a group is its latest.
+poll_latest_first <- function(df, group, date) {
+  df <- df[order(group, -as.numeric(date)), , drop = FALSE]
+  rownames(df) <- NULL
+  df
+}
+
 # Each study contributes once per candidate; alternative lineups are not independent samples.
 poll_study_estimates <- function(df, weighting) {
   if (!nrow(df)) return(data.frame())
@@ -138,17 +145,20 @@ poll_study_estimates <- function(df, weighting) {
   }
   df <- df[is.finite(df$score) & !is.na(df$terrain_fin), , drop = FALSE]
   if (!nrow(df)) return(data.frame())
-  groups <- split(seq_len(nrow(df)), paste(df$sondage_id, df$candidat_id, sep = "::"))
-  studies <- do.call(rbind, lapply(groups, function(idx) {
-    x <- df[idx, , drop = FALSE]
-    latest <- which.max(x$terrain_fin)
-    sample <- x$sample_n[is.finite(x$sample_n) & x$sample_n > 0]
-    data.frame(sondage_id = x$sondage_id[1L], candidat_id = x$candidat_id[1L],
-               candidat = x$candidat[latest], parti = x$parti[latest],
-               score = mean(x$score), min_score = min(x$score), max_score = max(x$score),
-               sample_n = if (length(sample)) mean(sample) else NA_real_,
-               last_date = max(x$terrain_fin))
-  }))
+  key <- paste(df$sondage_id, df$candidat_id, sep = "::")
+  df <- poll_latest_first(df, key, df$terrain_fin)
+  key <- paste(df$sondage_id, df$candidat_id, sep = "::")
+  g <- factor(key, levels = unique(key))
+  first <- !duplicated(key)
+  sample <- ifelse(is.finite(df$sample_n) & df$sample_n > 0, df$sample_n, NA_real_)
+  studies <- data.frame(
+    sondage_id = df$sondage_id[first], candidat_id = df$candidat_id[first],
+    candidat = df$candidat[first], parti = df$parti[first],
+    score = as.vector(tapply(df$score, g, mean)),
+    min_score = as.vector(tapply(df$score, g, min)), max_score = as.vector(tapply(df$score, g, max)),
+    sample_n = as.vector(tapply(sample, g, function(x) if (all(is.na(x))) NA_real_ else mean(x, na.rm = TRUE))),
+    last_date = df$terrain_fin[first]
+  )
   if (weighting == "sample") studies <- studies[is.finite(studies$sample_n), , drop = FALSE]
   rownames(studies) <- NULL
   studies
@@ -156,14 +166,16 @@ poll_study_estimates <- function(df, weighting) {
 
 poll_summarise_studies <- function(studies, weighting) {
   if (!nrow(studies)) return(poll_empty_estimates())
-  result <- do.call(rbind, lapply(split(studies, studies$candidat_id), function(x) {
-    latest <- which.max(x$last_date)
-    data.frame(candidat_id = x$candidat_id[1L], candidat = x$candidat[latest],
-               parti = x$parti[latest],
-               score = if (weighting == "sample") stats::weighted.mean(x$score, x$sample_n) else mean(x$score),
-               n_polls = nrow(x), min_score = min(x$min_score), max_score = max(x$max_score),
-               last_date = max(x$last_date))
-  }))
+  x <- poll_latest_first(studies, studies$candidat_id, studies$last_date)
+  g <- factor(x$candidat_id, levels = unique(x$candidat_id))
+  first <- !duplicated(x$candidat_id)
+  w <- if (weighting == "sample") x$sample_n else rep(1, nrow(x))
+  result <- data.frame(
+    candidat_id = x$candidat_id[first], candidat = x$candidat[first], parti = x$parti[first],
+    score = as.vector(tapply(x$score * w, g, sum) / tapply(w, g, sum)),
+    n_polls = as.vector(table(g)), min_score = as.vector(tapply(x$min_score, g, min)),
+    max_score = as.vector(tapply(x$max_score, g, max)), last_date = x$last_date[first]
+  )
   result <- result[order(-result$score, result$candidat_id), , drop = FALSE]
   rownames(result) <- NULL
   result
@@ -197,13 +209,19 @@ poll_trend <- function(df, window = 90, weighting = c("equal", "sample")) {
     return(result)
   }
   result <- do.call(rbind, lapply(split(studies, studies$candidat_id), function(x) {
-    dates <- sort(unique(x$last_date))
-    do.call(rbind, lapply(seq_along(dates), function(i) {
-      day <- dates[i]
-      result <- poll_summarise_studies(x[x$last_date <= day & x$last_date > day - window, , drop = FALSE], weighting)
-      result$date <- day
-      result
-    }))
+    x <- x[order(x$last_date), , drop = FALSE]
+    t <- as.numeric(x$last_date)
+    day <- unique(t)
+    # Window (day - window, day]: studies lo..hi of the date-sorted table.
+    hi <- findInterval(day, t)
+    lo <- findInterval(day - window, t) + 1L
+    w <- if (weighting == "sample") x$sample_n else rep(1, nrow(x))
+    over <- function(f) vapply(seq_along(day), function(i) f(lo[i]:hi[i]), numeric(1))
+    latest <- match(day, t)
+    data.frame(candidat_id = x$candidat_id[1L], candidat = x$candidat[latest], parti = x$parti[latest],
+               score = over(function(k) sum(x$score[k] * w[k]) / sum(w[k])), n_polls = hi - lo + 1L,
+               min_score = over(function(k) min(x$min_score[k])), max_score = over(function(k) max(x$max_score[k])),
+               last_date = x$last_date[hi], date = x$last_date[hi])
   }))
   result <- result[order(result$date, result$candidat_id), , drop = FALSE]
   rownames(result) <- NULL

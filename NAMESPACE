@@ -3,7 +3,6 @@
 export(run_app)
 import(shiny)
 importFrom(golem,
-  activate_js,
   add_resource_path,
   bundle_resources,
   favicon,

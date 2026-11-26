@@ -2546,13 +2546,19 @@
       "checksum": "4efd8b16159a0b861d3711b6c8589ffb"
     },
     "inst/app/www/app.css": {
-      "checksum": "754b151e7ebaf9e64dc33e096e474943"
+      "checksum": "031e53795b87b751ed9b7c01c6d1b9d0"
     },
     "inst/app/www/favicon.ico": {
       "checksum": "81560d1b906a530c87fa0acbb2f5cca4"
     },
     "inst/app/www/logo-observatoire-2027.png": {
       "checksum": "686b6d3f1aac108cc0afe8c83f3ed0f5"
+    },
+    "inst/extdata/sondages-presidentielle-2017.csv": {
+      "checksum": "158899453bc85846ed6bdcccb555acc4"
+    },
+    "inst/extdata/sondages-presidentielle-2022.csv": {
+      "checksum": "e30d5f847e6f2596cf187e9cc609dd7c"
     },
     "inst/extdata/sondages-presidentielle-2027.csv": {
       "checksum": "312d7ba47cb55202ff75f1efc498bd1d"
@@ -2564,22 +2570,25 @@
       "checksum": "d0dd5bd4dc86d0e69f74ac2131b18b51"
     },
     "NAMESPACE": {
-      "checksum": "8beaf4f720de8b50fffe8baae237454a"
+      "checksum": "8f6cfb589852bf5a2db1a77c4d8da6dd"
     },
     "R/app_config.R": {
       "checksum": "ea999175ba4deef82abe2413a7b200df"
     },
     "R/app_server.R": {
-      "checksum": "4f90b715579f991e0b2155e5fc58a7a5"
+      "checksum": "5f6fa26f091571e562214f0aad2b3e3e"
     },
     "R/app_ui.R": {
-      "checksum": "4c2863cd759aea2c78e43c5b8f3dede5"
+      "checksum": "e1241ff6ec6dbe2c90b8486c7a5fbe73"
+    },
+    "R/fct_compare.R": {
+      "checksum": "41a47bf1182507548748e87fa58b98b0"
     },
     "R/fct_data.R": {
-      "checksum": "82830098433d03de7d942a086954d4ae"
+      "checksum": "91dca186f97ce8ddfab63291a94a7bfa"
     },
     "R/fct_display.R": {
-      "checksum": "60eb27aac098d9d134233f0691ed960e"
+      "checksum": "0ad6119beccb68c4c4623e3d9ea28772"
     },
     "R/fct_download.R": {
       "checksum": "e8c140b23ca8b4341d9b7fcd3612a650"
